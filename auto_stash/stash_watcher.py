@@ -31,7 +31,9 @@ def has_changes(cwd, include_untracked=False) -> bool:
 def stash_changes(cwd):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     subprocess.run(
-        ["git", "stash", "push", "--keep-working-directory","-m", f"auto-stash {timestamp}"],
+        ["git", "stash", "store",
+        "$(git", "stash", "create)",
+        "-m", f"auto-stash {timestamp}"],
         check=True,
         cwd=cwd
     )
@@ -55,3 +57,4 @@ if __name__ == "__main__":
     current_dir = os.path.dirname(__file__)
     parent_dir = os.path.abspath(os.path.join(current_dir, ".."))
     run(cwd=parent_dir)
+
