@@ -13,9 +13,15 @@ def log(msg: str):
         f.write(f"[{ts}] {msg}\n")
     print(f"[{ts}] {msg}")
 
-def has_changes(cwd) -> bool:
+def has_changes(cwd, include_untracked=False) -> bool:
+
+    cmd = ["git", "status", "--porcelain"]
+
+    if not include_untracked:
+        cmd.append("--untracked-files=no")
+
     result = subprocess.run(
-        ["git", "status", "--porcelain"],
+        ["git", "status", "--porcelain", "--untracked-files=no"],
         capture_output=True,
         text=True,
         cwd=cwd
@@ -25,13 +31,13 @@ def has_changes(cwd) -> bool:
 def stash_changes(cwd):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     subprocess.run(
-        ["git", "stash", "push", "-k","-m", f"auto-stash {timestamp}"],
+        ["git", "stash", "push", "--keep-working-directory","-m", f"auto-stash {timestamp}"],
         check=True,
         cwd=cwd
     )
     print(f"Stashed changes at {timestamp}")
 
-def run(interval=300, cwd=None):
+def run(interval=20, cwd=None):
     log("=== Git Auto Stash Watcher Started ===")
     while True:
         try:
