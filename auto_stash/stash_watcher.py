@@ -45,19 +45,43 @@ def stash_changes(cwd, include_untracked=False):
     )
     print(f"Stashed changes at {timestamp}")
 
-def run(interval=20, cwd=None):
+def do_stash_job(cwd, include_untracked):
+    if has_changes(cwd):
+        log("Changes detected, stashing...")
+        stash_changes(cwd, include_untracked)
+        log("Changes stashed.")
+    else:
+        log("No changes detected.")
+
+def run(interval=20, cwd=None, include_untracked=False):
     log("=== Git Auto Stash Watcher Started ===")
-    while True:
-        try:
-            if has_changes(cwd):
-                log("Changes detected, stashing...")
-                stash_changes(cwd)
-                log("Changes stashed.")
+    next_run = time.time()
+
+    try:
+        while True:
+            now = time.time()
+            if now >= next_run:
+                start = time.time()
+                try:
+                    do_stash_job(cwd, include_untracked)
+
+                    next_run += interval
+                    while next_run < now:
+                        next_run += interval
+
+                except Exception as e:
+                    log(f"Error: {e}")
+
+                elapsed = time.time() - start
+                log(f"Job finished in {elapsed:.2f}s, next run at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(next_run))}")
+
             else:
-                log("No changes detected.")
-        except Exception as e:
-            log(f"Error: {e}")
-        time.sleep(interval)
+                sleep_time = next_run - now
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+    except KeyboardInterrupt:
+        log("=== Git Auto Stash Watcher Stopped by user ===")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Git Auto Stash Watcher.")
