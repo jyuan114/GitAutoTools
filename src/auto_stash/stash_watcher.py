@@ -36,8 +36,8 @@ def stash_changes(cwd, include_untracked=False):
         "-m", f"auto-stash {timestamp}"]
     
     if include_untracked:
-        cmd.insert(2, "--include-untracked")
-        
+        cmd.insert(6, "--include-untracked")
+
     subprocess.run(
         cmd,
         check=True,
@@ -87,10 +87,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Git Auto Stash Watcher.")
     parser.add_argument("-u", "--untracked", action="store_true", help="Include untracked files.")
     parser.add_argument("-i", "--interval", type=int, default=20, help="Check interval in seconds.")
+    parser.add_argument("--once", action="store_true", help="Run once and exit.")
+
     args = parser.parse_args()
 
     current_dir = os.path.dirname(__file__)
     parent_dir = os.path.abspath(os.path.join(current_dir, ".."))
 
-    run(interval=args.interval, include_untracked=args.untracked, cwd=parent_dir)
+    if args.once:
+        do_stash_job(parent_dir, args.untracked)
+    else:
+        run(interval=args.interval, include_untracked=args.untracked, cwd=parent_dir)
 

@@ -1,0 +1,15 @@
+[project]
+name = "git-auto-stash"
+version = "0.1.0"
+description = "Watch a repo and auto-stash changes safely"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name="Your Name"}]
+
+[project.scripts]
+git-auto-stash = "git_auto_stash.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
