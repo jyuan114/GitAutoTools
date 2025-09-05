@@ -10,8 +10,12 @@ LOG_FILE = os.path.join(os.path.dirname(__file__), "..", "logs", "auto_stash.log
 
 def log(msg: str):
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(f"[{ts}] {msg}\n")
+
     print(f"[{ts}] {msg}")
 
 def has_changes(cwd, include_untracked=False) -> bool:
@@ -31,6 +35,18 @@ def has_changes(cwd, include_untracked=False) -> bool:
 
 def stash_changes(cwd, include_untracked=False):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    create_cmd = ["git", "stash", "create"] 
+
+    if include_untracked:
+        create_cmd.append("--include-untracked")
+
+    res = subprocess.run(
+        create_cmd,
+        capture_output=True,
+        text=True,
+        cwd=cwd
+    )
     cmd = ["git", "stash", "store",
         "$(", "git", "stash", "create", ")",
         "-m", f"auto-stash {timestamp}"]
@@ -53,7 +69,7 @@ def do_stash_job(cwd, include_untracked):
     else:
         log("No changes detected.")
 
-def run(interval=20, cwd=None, include_untracked=False):
+def run_watcher(interval=20, cwd=None, include_untracked=False):
     log("=== Git Auto Stash Watcher Started ===")
     next_run = time.time()
 
@@ -83,19 +99,19 @@ def run(interval=20, cwd=None, include_untracked=False):
         log("=== Git Auto Stash Watcher Stopped by user ===")
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Git Auto Stash Watcher.")
-    parser.add_argument("-u", "--untracked", action="store_true", help="Include untracked files.")
-    parser.add_argument("-i", "--interval", type=int, default=20, help="Check interval in seconds.")
-    parser.add_argument("--once", action="store_true", help="Run once and exit.")
+# if __name__ == "__main__":
+#     parser = argparse.ArgumentParser(description="Git Auto Stash Watcher.")
+#     parser.add_argument("-u", "--untracked", action="store_true", help="Include untracked files.")
+#     parser.add_argument("-i", "--interval", type=int, default=20, help="Check interval in seconds.")
+#     parser.add_argument("--once", action="store_true", help="Run once and exit.")
 
-    args = parser.parse_args()
+#     args = parser.parse_args()
 
-    current_dir = os.path.dirname(__file__)
-    parent_dir = os.path.abspath(os.path.join(current_dir, ".."))
+#     current_dir = os.path.dirname(__file__)
+#     parent_dir = os.path.abspath(os.path.join(current_dir, ".."))
 
-    if args.once:
-        do_stash_job(parent_dir, args.untracked)
-    else:
-        run(interval=args.interval, include_untracked=args.untracked, cwd=parent_dir)
+#     if args.once:
+#         do_stash_job(parent_dir, args.untracked)
+#     else:
+#         run_watcher(interval=args.interval, include_untracked=args.untracked, cwd=parent_dir)
 
