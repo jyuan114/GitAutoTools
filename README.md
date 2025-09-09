@@ -10,6 +10,6 @@
 
 ## 安裝
 ```bash
-git clone https://github.com/yourname/git-auto-stash-watcher.git
+git clone https://github.com/jyuan114/GitAutoTools.git
 cd git-auto-stash-watcher
 pip install -r requirements.txt
