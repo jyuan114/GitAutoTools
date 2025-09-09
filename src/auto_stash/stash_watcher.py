@@ -8,15 +8,16 @@ from typing import List, Tuple
 
 APP_NAME = "GitAutoStash"
 DEFAULT_INTERVAL = 20 # second
-LOG_FILE = os.path.join(os.path.dirname(__file__), "..", "logs", "auto_stash.log")
+# Use pathlib for cross-platform path handling and resolve the log file location
+LOG_FILE = Path(__file__).resolve().parent.parent / "logs" / "auto_stash.log"
 
 
 def log(msg: str):
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
+    with LOG_FILE.open("a", encoding="utf-8") as f:
         f.write(f"[{ts}] {msg}\n")
 
     print(f"[{ts}] {msg}")
