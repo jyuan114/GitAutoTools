@@ -80,7 +80,7 @@ def stash_changes(cwd, include_untracked=False):
     print(f"Stashed changes at {timestamp}")
 
 def do_stash_job(cwd, include_untracked):
-    if has_changes(cwd):
+    if has_changes(cwd, include_untracked):
         log("Changes detected, stashing...")
         stash_changes(cwd, include_untracked)
         log("Changes stashed.")
@@ -127,7 +127,7 @@ def default_trackfile():
         return base / APP_NAME / "tracklist.txt"
     
     else:
-        return Path.home() / ".config" / "git-suto-stash" / "tracklist.txt"
+        return Path.home() / ".config" / "git-auto-stash" / "tracklist.txt"
 
 def _normalize_path(p: str) -> str:
 
@@ -159,7 +159,7 @@ def save_tracklist(trackfile: Path, items: List[Path]) -> None:
 
     tmp = trackfile.with_suffix(trackfile.suffix + ".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
-        f.write("# GitAutoStash track lsit\n")
+        f.write("# GitAutoStash track list\n")
         f.write("# 一行一個資料夾；支援 ~ 與環境變數，註解以 # 開頭\n\n")
 
         for p in sorted({str(p.resolve()) for p in items}):

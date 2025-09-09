@@ -39,7 +39,7 @@ def build_parser():
     p_watch = sub.add_parser("watch", help="Watch folders and auto-stash changes 監看清單中的所有資料夾")
     p_watch.add_argument("--cwd", default=".", help="Git repo path")
     p_watch.add_argument("--file", dest="trackfile", default=str(default_trackfile()))
-    p_watch.add_argument("--intervel", "-i", type=int, default=20, help="輪尋秒數")
+    p_watch.add_argument("--intervel", "-i", type=int, default=300, help="輪尋秒數")
     p_watch.add_argument("--include-untracked", "-u", action="store_true")
 
     p_ver = sub.add_parser("version", aliases=["v"], help="Show version")
