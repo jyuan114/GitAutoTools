@@ -87,7 +87,7 @@ def do_stash_job(cwd, include_untracked):
     else:
         log("No changes detected.")
 
-def run_watcher(interval=20, cwd=None, include_untracked=False):
+def run_watcher(paths: List[Path], interval=20, include_untracked=False):
     log("=== Git Auto Stash Watcher Started ===")
     next_run = time.time()
 
@@ -97,7 +97,11 @@ def run_watcher(interval=20, cwd=None, include_untracked=False):
             if now >= next_run:
                 start = time.time()
                 try:
-                    do_stash_job(cwd, include_untracked)
+                    for cwd in paths:
+                        if not is_git_repo(cwd):
+                            log(f"Skip non-git repo: {cwd}")
+                            continue
+                        do_stash_job(cwd, include_untracked)
 
                     next_run += interval
                     while next_run < now:

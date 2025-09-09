@@ -36,7 +36,7 @@ def build_parser():
     p_rm.add_argument("path")
     p_rm.add_argument("--file", dest="trackfile", default=str(default_trackfile()))
 
-    p_watch = sub.add_parser("watch", help="Watch folders and auto-stash changes 監看清單中的所有資料夾")
+    p_watch = sub.add_parser("watch", help="Watch folders from track list and auto-stash changes 監看清單中的所有資料夾")
     p_watch.add_argument("--cwd", default=".", help="Git repo path")
     p_watch.add_argument("--file", dest="trackfile", default=str(default_trackfile()))
     p_watch.add_argument("--intervel", "-i", type=int, default=300, help="輪尋秒數")
@@ -56,7 +56,7 @@ def main():
         parser.print_help()
 
     elif args.cmd == "track":
-        if args.track_cmd == None:
+        if args.track_cmd is None:
             parser._subparsers._group_actions[0].choices["track"].print_help()
             return 0
         
@@ -81,14 +81,13 @@ def main():
     
     elif args.cmd == "watch":
         tf = Path(args.trackfile)
-        # tf.parent.mkdir(parents=True, exist_ok=True)
+        paths = load_tracklist(tf)
 
-        # if not tf.exists():
-
-        run_watcher(interval=args.intervel, cwd=args.cwd,
-                    include_untracked=args.include_untracked,
-                    #   log_file=args.log_file
-                    )
+        run_watcher(
+            paths = paths,
+            interval=args.intervel,
+            include_untracked=args.include_untracked,
+        )
         
     elif args.cmd == "version" or "v":
         args.func(args)
