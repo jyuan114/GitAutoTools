@@ -3,8 +3,11 @@ import subprocess
 import datetime
 import time
 import os
-import argparse
+from pathlib import Path
+from typing import List, Tuple
 
+APP_NAME = "GitAutoStash"
+DEFAULT_INTERVAL = 20 # second
 LOG_FILE = os.path.join(os.path.dirname(__file__), "..", "logs", "auto_stash.log")
 
 
@@ -17,6 +20,21 @@ def log(msg: str):
         f.write(f"[{ts}] {msg}\n")
 
     print(f"[{ts}] {msg}")
+
+def is_git_repo(path):
+    try:
+        res = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=str(path),
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return res.stdout.strip() == "true"
+    
+    except subprocess.CalledProcessError:
+        return False
+
 
 def has_changes(cwd, include_untracked=False) -> bool:
 
@@ -47,15 +65,14 @@ def stash_changes(cwd, include_untracked=False):
         text=True,
         cwd=cwd
     )
-    cmd = ["git", "stash", "store",
-        "$(", "git", "stash", "create", ")",
+
+    ref = res.stdout.strip()
+
+    store_cmd = ["git", "stash", "store", ref,
         "-m", f"auto-stash {timestamp}"]
     
-    if include_untracked:
-        cmd.insert(6, "--include-untracked")
-
     subprocess.run(
-        cmd,
+        store_cmd,
         check=True,
         cwd=cwd
     )
@@ -97,6 +114,79 @@ def run_watcher(interval=20, cwd=None, include_untracked=False):
                     time.sleep(sleep_time)
     except KeyboardInterrupt:
         log("=== Git Auto Stash Watcher Stopped by user ===")
+
+def default_trackfile():
+    """
+    Default list location:
+      - Windows: %APPDATA%/GitAutoStash/tracklist.txt
+      - Others: ~/.config/git-auto-stash/tracklist.txt
+    """
+    if os.name == "nt":
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+        return base / APP_NAME / "tracklist.txt"
+    
+    else:
+        return Path.home() / ".config" / "git-suto-stash" / "tracklist.txt"
+
+def _normalize_path(p: str) -> str:
+
+    return str(Path(os.path.expandvars(os.path.expanduser(p))).resolve())
+
+def load_tracklist(trackfile: Path) -> List[Path]:
+    if not trackfile.exists():
+        return []
+    
+    items = []
+    seen = set()
+
+    with open(trackfile, "r", encoding="utf-8") as f:
+        for raw in f:
+            line = raw.strip()
+            
+            if not line or line.startswith("#"):
+                continue
+
+            norm = _normalize_path(line)
+            if norm not in seen:
+                items.append(Path(norm))
+                seen.add(norm)
+
+    return items
+
+def save_tracklist(trackfile: Path, items: List[Path]) -> None:
+    trackfile.parent.mkdir(parents=True, exist_ok=True)
+
+    tmp = trackfile.with_suffix(trackfile.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("# GitAutoStash track lsit\n")
+        f.write("# 一行一個資料夾；支援 ~ 與環境變數，註解以 # 開頭\n\n")
+
+        for p in sorted({str(p.resolve()) for p in items}):
+            f.write(p + "\n")
+    tmp.replace(trackfile)
+
+def add_to_tracklist(trackfile: Path, path: str) -> Tuple[bool, str]:
+    items = load_tracklist(trackfile)
+    norm = Path(_normalize_path(path))
+
+    if norm in items:
+        return False, f"Existed: {norm}"
+    
+    items.append(norm)
+    save_tracklist(trackfile, items)
+    return True, f"Added: {norm}"
+
+def remove_from_tracklist(trackfile: Path, path: str) -> Tuple[bool, str]:
+    items = load_tracklist(trackfile)
+    norm = Path(_normalize_path(path))
+    
+    new_items = [p for p in items if p != norm]
+    
+    if len(new_items) == len(items):
+        return False, f"Not found: {norm}"
+    
+    save_tracklist(trackfile, new_items)
+    return True, f"Removed: {norm}"
 
 
 # if __name__ == "__main__":
