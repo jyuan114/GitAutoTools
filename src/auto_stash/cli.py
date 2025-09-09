@@ -38,6 +38,7 @@ def build_parser():
 
     p_watch = sub.add_parser("watch", help="Watch folders from track list and auto-stash changes 監看清單中的所有資料夾")
     p_watch.add_argument("--cwd", default=".", help="Git repo path")
+    p_watch.add_argument("--fmt", default="line", help="print style: pretty or line")
     p_watch.add_argument("--file", dest="trackfile", default=str(default_trackfile()))
     p_watch.add_argument("--intervel", "-i", type=int, default=300, help="輪尋秒數")
     p_watch.add_argument("--include-untracked", "-u", action="store_true")
@@ -87,6 +88,7 @@ def main():
             paths = paths,
             interval=args.intervel,
             include_untracked=args.include_untracked,
+            fmt=args.fmt
         )
         
     elif args.cmd == "version" or "v":

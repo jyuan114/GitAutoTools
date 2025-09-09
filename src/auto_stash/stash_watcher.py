@@ -4,15 +4,36 @@ import datetime
 import time
 import os
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 APP_NAME = "GitAutoStash"
 DEFAULT_INTERVAL = 20 # second
-# Use pathlib for cross-platform path handling and resolve the log file location
 LOG_FILE = Path(__file__).resolve().parent.parent / "logs" / "auto_stash.log"
 
+# -------------- 格式工具 -------------
+class Colors:
+    RESET = "\x1b[0m"
+    GRAY = "\x1b[90m"
+    GREEN = "\x1b[32m"
+    YELLOW = "\x1b[33m"
 
-def log(msg: str):
+def _colorize(s: str, code: str, enable: bool) -> str:
+    return f"{code}{s}{Colors.RESET}" if enable else s
+
+def _icon_status(status: str) -> str:
+    return {
+        "STASHED": "✅",
+        "NO_CHANGES": "∅",
+        "ERROR": "⚠",
+        "SKIPPED": "⏭",
+    }.get(status,  "•")
+
+def _short(s: Optional[str], n: int = 8) -> Optional[str]:
+    if not s:
+        return None
+    return s[:n]
+
+def log(msg: str, ts=True):
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -20,7 +41,10 @@ def log(msg: str):
     with LOG_FILE.open("a", encoding="utf-8") as f:
         f.write(f"[{ts}] {msg}\n")
 
-    print(f"[{ts}] {msg}")
+    if ts:
+        print(f"[{ts}] {msg}")
+    else:
+        print(f"{msg}")
 
 def is_git_repo(path):
     try:
@@ -68,50 +92,95 @@ def stash_changes(cwd, include_untracked=False):
     )
 
     ref = res.stdout.strip()
+    message = f"auto-stash {timestamp}"
 
-    store_cmd = ["git", "stash", "store", ref,
-        "-m", f"auto-stash {timestamp}"]
+    store_cmd = ["git", "stash", "store", ref, "-m", message]
     
     subprocess.run(
         store_cmd,
         check=True,
         cwd=cwd
     )
-    print(f"Stashed changes at {timestamp}")
 
-def do_stash_job(cwd, include_untracked):
-    if has_changes(cwd, include_untracked):
-        log("Changes detected, stashing...")
-        stash_changes(cwd, include_untracked)
-        log("Changes stashed.")
-    else:
-        log("No changes detected.")
+    return ref, message
 
-def run_watcher(paths: List[Path], interval=20, include_untracked=False):
+def do_stash_job(cwd: Path, include_untracked: bool):
+    """
+    回傳統一結構
+    {
+      "repo": str,
+      "status": "STASHED" | "NO_CHANGES" | "ERROR",
+      "stash_id": Optional[str],
+      "message": Optional[str],
+      "detail": Optional[str],
+    }
+    """
+    try:
+        if not is_git_repo(cwd):
+            return {"repo": str(cwd), "status": "SKIPPED", "detail": "not a git repository"}
+
+        if has_changes(cwd, include_untracked):
+            ret = stash_changes(cwd)
+            stash_id: Optional[str] = None
+            message: Optional[str] = None
+
+            if isinstance(ret, tuple):
+                if len(ret) >= 1:
+                    stash_id = ret[0]
+                if len(ret) >= 2:
+                    message = ret[1]
+                
+            return {
+                "repo": str(cwd),
+                "status": "STASHED",
+                "stash_id": stash_id,
+                "message": message,
+            }
+        
+        else:
+            return {"repo": str(cwd), "status": "NO_CHANGES"}
+
+    except Exception as e:
+        return {
+            "repo": str(cwd),
+            "status": "ERROR",
+            "detail": str(e)
+        }
+
+def run_watcher(paths: List[Path], interval=20, include_untracked=False, fmt: str="line", color: bool=True):
     log("=== Git Auto Stash Watcher Started ===")
     next_run = time.time()
+    run_id = 0
 
     try:
         while True:
             now = time.time()
             if now >= next_run:
+                run_id += 1
                 start = time.time()
+
+                results: List[dict] = []
                 try:
                     for cwd in paths:
-                        if not is_git_repo(cwd):
-                            log(f"Skip non-git repo: {cwd}")
-                            continue
-                        do_stash_job(cwd, include_untracked)
+                        res = do_stash_job(cwd, include_untracked)
+                        results.append(res)
 
                     next_run += interval
                     while next_run < now:
                         next_run += interval
 
                 except Exception as e:
-                    log(f"Error: {e}")
-
+                    results.append({
+                        "repo": "<run-level>",
+                        "status": "ERROR",
+                        "detail": str(e)
+                    })
                 elapsed = time.time() - start
-                log(f"Job finished in {elapsed:.2f}s, next run at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(next_run))}")
+
+                if fmt == "pretty":
+                    _render_pretty(run_id, start, elapsed, next_run, results, color)
+                else:
+                    _render_line(start, elapsed, next_run, results, color)
 
             else:
                 sleep_time = next_run - now
@@ -193,20 +262,94 @@ def remove_from_tracklist(trackfile: Path, path: str) -> Tuple[bool, str]:
     save_tracklist(trackfile, new_items)
     return True, f"Removed: {norm}"
 
+# --------- Print --------
+def _render_pretty(run_id: int, started_at: float, duration: float, next_run: float,
+                   results: List[dict], color: bool ):
+    timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(started_at))
+    head = f"Run #{run_id}  (took {duration:.2f}s)  Next: {time.strftime('%H:%M:%S', time.localtime(next_run))}"
+    log(head)
 
-# if __name__ == "__main__":
-#     parser = argparse.ArgumentParser(description="Git Auto Stash Watcher.")
-#     parser.add_argument("-u", "--untracked", action="store_true", help="Include untracked files.")
-#     parser.add_argument("-i", "--interval", type=int, default=20, help="Check interval in seconds.")
-#     parser.add_argument("--once", action="store_true", help="Run once and exit.")
+    repo_width = max([len(r["repo"]) for r in results] + [24])
+    status_width = 11
 
-#     args = parser.parse_args()
+    for i, r in enumerate(results):
+        icon = _icon_status(r["status"])
+        status_text = r["status"]
 
-#     current_dir = os.path.dirname(__file__)
-#     parent_dir = os.path.abspath(os.path.join(current_dir, ".."))
+        # Color
+        if r["status"] == "STASHED":
+            status_text = _colorize(status_text, Colors.GREEN, color)
+        elif r["status"] == "NO_CHANGES" or r["status"] == "SKIPPED":
+            status_text = _colorize(status_text, Colors.GRAY, color)
+        elif r["status"] == "ERROR":
+            status_text = _colorize(status_text, Colors.YELLOW, color)
 
-#     if args.once:
-#         do_stash_job(parent_dir, args.untracked)
-#     else:
-#         run_watcher(interval=args.interval, include_untracked=args.untracked, cwd=parent_dir)
+        prefix = "└─" if i == len(results) - 1 else "├─"
+        line = f"  {prefix} repo: {r['repo']:<{repo_width}}  status: {icon} {status_text:<{status_width}}"
+
+        if r.get("stash_id"):
+            line += f"  stash: {_short(r['stash_id'])}"
+        # if r.get("message"):
+        #     line += f"  msg: {r['message']}"
+        if r.get("detail"):
+            line += f"  detail: {r['detail']}"
+
+        log(line)
+
+    total = len(results)
+    stashed = sum(1 for r in results if r["status"] == "STASHED")
+    nochg = sum(1 for r in results if r["status"] == "NO_CHANGES")
+    skipped = sum(1 for r in results if r["status"] == "SKIPPED")
+    errors = sum(1 for r in results if r["status"] == "ERROR")
+
+    summary_parts = [f"Summary: {total} repos"]
+    if stashed != 0:
+        summary_parts.append(f"stashed: {stashed}")
+    if nochg != 0:
+        summary_parts.append(f"changes: {nochg}")
+    if skipped != 0:
+        summary_parts.append(f"skipped: {skipped}")
+    if errors != 0:
+        summary_parts.append(f"errors: {errors}")
+    log(" | ".join(summary_parts))
+
+def _render_line(start: float, duration: float, next_run: float, results: List[dict], color: bool):
+    for r in results:
+        status = r['status']
+        if status == "STASHED":
+            status = _colorize(status, Colors.GREEN, color)
+        elif status in ("NO_CHANGES", "SKIPPED"):
+            status = _colorize(status, Colors.GRAY, color)
+        elif status == "ERROR":
+            status = _colorize(status, Colors.YELLOW, color)
+
+        parts = [f"{status}", f"repo={r['repo']}"]
+
+        if r.get("stash_id"):
+            parts.append(f"stash={_short(r['stash_id'])}")
+        if r.get("message"):
+            parts.append(f'msg="{r["message"]}"')
+        if r.get("detail"):
+            parts.append(f'detail="{r["detail"]}"')
+
+        log("  ".join(parts),ts=False)
+
+    total = len(results)
+    stashed = sum(1 for r in results if r["status"] == "STASHED")
+    nochg = sum(1 for r in results if r["status"] == "NO_CHANGES")
+    skipped = sum(1 for r in results if r["status"] == "SKIPPED")
+    errors = sum(1 for r in results if r["status"] == "ERROR")
+
+    summary_parts = [f"Summary  repos={total}"]
+    if stashed != 0:
+        summary_parts.append(f"stashed={stashed}")
+    if nochg != 0:
+        summary_parts.append(f"changes={nochg}")
+    if skipped != 0:
+        summary_parts.append(f"skipped={skipped}")
+    if errors != 0:
+        summary_parts.append(f"errors={errors}")
+    log(" ".join(summary_parts))
+
+
 
