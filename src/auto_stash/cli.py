@@ -37,7 +37,7 @@ def build_parser():
     p_rm.add_argument("--file", dest="trackfile", default=str(default_trackfile()))
 
     p_watch = sub.add_parser("watch", help="Watch folders from track list and auto-stash changes 監看清單中的所有資料夾")
-    p_watch.add_argument("--cwd", default=".", help="Git repo path")
+    p_watch.add_argument("--cwd", help="Specify the Git repo path")
     p_watch.add_argument("--fmt", default="line", help="print style: pretty or line")
     p_watch.add_argument("--file", dest="trackfile", default=str(default_trackfile()))
     p_watch.add_argument("--intervel", "-i", type=int, default=300, help="輪尋秒數")
@@ -81,8 +81,13 @@ def main():
             print(msg)
     
     elif args.cmd == "watch":
-        tf = Path(args.trackfile)
-        paths = load_tracklist(tf)
+
+        if args.cwd:
+            print("cwd", args.cwd)
+            paths = [Path(args.cwd)]
+        else:
+            tf = Path(args.trackfile)
+            paths = load_tracklist(tf)
 
         run_watcher(
             paths = paths,

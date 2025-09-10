@@ -310,7 +310,7 @@ def _render_pretty(run_id: int, started_at: float, duration: float, next_run: fl
     if stashed != 0:
         summary_parts.append(f"stashed: {stashed}")
     if nochg != 0:
-        summary_parts.append(f"changes: {nochg}")
+        summary_parts.append(f"no changes: {nochg}")
     if skipped != 0:
         summary_parts.append(f"skipped: {skipped}")
     if errors != 0:
@@ -348,7 +348,7 @@ def _render_line(start: float, duration: float, next_run: float, results: List[d
     if stashed != 0:
         summary_parts.append(f"stashed={stashed}")
     if nochg != 0:
-        summary_parts.append(f"changes={nochg}")
+        summary_parts.append(f"no_changes={nochg}")
     if skipped != 0:
         summary_parts.append(f"skipped={skipped}")
     if errors != 0:
