@@ -5,6 +5,7 @@ import time
 import os
 from pathlib import Path
 from typing import List, Tuple, Optional
+from collections import defaultdict
 
 APP_NAME = "GitAutoStash"
 DEFAULT_INTERVAL = 20 # second
@@ -46,7 +47,6 @@ def log(msg: str, ts=True):
     else:
         print(f"{msg}")
 
-
 # -------------- Git utils ------------------
 def is_git_repo(path):
     try:
@@ -68,6 +68,21 @@ def has_changes(cwd, include_untracked=False) -> bool:
 
     if not include_untracked:
         cmd.append("--untracked-files=no")
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd=cwd
+    )
+    return bool(result.stdout.strip())
+
+def has_stash_changes(cwd, include_untracked=False) -> bool:
+
+    cmd = ["git", "diff", "stash@{0}", "--name-only"]
+
+    if include_untracked:
+        cmd.append("-u")
 
     result = subprocess.run(
         cmd,
@@ -105,8 +120,12 @@ def stash_changes(cwd, include_untracked=False):
 
     return ref, message
 
+
 # -------------- Core Job --------------------
-def do_stash_job(cwd: Path, include_untracked: bool):
+def build_stash_state(paths: List[Path]):
+    return {p: False for p in paths}
+
+def do_stash_job(cwd: Path, include_untracked: bool, stashed: bool):
     """
     回傳統一結構
     {
@@ -122,6 +141,11 @@ def do_stash_job(cwd: Path, include_untracked: bool):
             return {"repo": str(cwd), "status": "SKIPPED", "detail": "not a git repository"}
 
         if has_changes(cwd, include_untracked):
+
+            if stashed:
+                if not has_stash_changes(cwd, include_untracked):
+                    return {"repo": str(cwd), "status": "NO_CHANGES"}
+                
             ret = stash_changes(cwd)
             stash_id: Optional[str] = None
             message: Optional[str] = None
@@ -154,6 +178,8 @@ def run_watcher(paths: List[Path], interval=20, include_untracked=False, fmt: st
     next_run = time.time()
     run_id = 0
 
+    stash_state = build_stash_state(paths)
+
     try:
         while True:
             now = time.time()
@@ -164,7 +190,11 @@ def run_watcher(paths: List[Path], interval=20, include_untracked=False, fmt: st
                 results: List[dict] = []
                 try:
                     for cwd in paths:
-                        res = do_stash_job(cwd, include_untracked)
+                        res = do_stash_job(cwd, include_untracked, stash_state[cwd])
+
+                        if res['status'] == "STASHED":
+                            stash_state[cwd] = True
+
                         results.append(res)
 
                     next_run += interval
