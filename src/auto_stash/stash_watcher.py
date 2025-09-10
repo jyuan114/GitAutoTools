@@ -120,6 +120,32 @@ def stash_changes(cwd, include_untracked=False):
 
     return ref, message
 
+def stash_clear(paths: List[Path]):
+    print(_colorize("WARNING: This operation will permanently clear all stashes.", Colors.YELLOW, True))
+
+    print("The following repositories will be affected:")
+    for path in paths:
+        print(f"  - {path}")
+
+    confirm = input("Are you sure you want to continue? (yes/[no])").strip().lower()
+
+    if confirm not in ("y", "yes"):
+        print("Operation cancelled.")
+        return
+    
+    for path in paths:
+        if not is_git_repo(path):
+            log(f"Skip non-git repo: {path}")
+            continue
+        
+        cmd = ["git", "stash", "clear"]
+
+        try:
+            subprocess.run(cmd, cwd=path, check=True)
+            log(f"Stash cleared in {path}")
+
+        except subprocess.CalledProcessError as e:
+            log(f"Failed to clear stash in {path}: {e}")
 
 # -------------- Core Job --------------------
 def build_stash_state(paths: List[Path]):

@@ -5,7 +5,8 @@ from .stash_watcher import (
     load_tracklist,
     add_to_tracklist,
     remove_from_tracklist,
-    run_watcher
+    run_watcher,
+    stash_clear
 )
 
 APP_PROG = "auto-stash"
@@ -42,6 +43,9 @@ def build_parser():
     p_watch.add_argument("--file", dest="trackfile", default=str(default_trackfile()))
     p_watch.add_argument("--intervel", "-i", type=int, default=300, help="輪尋秒數")
     p_watch.add_argument("--include-untracked", "-u", action="store_true")
+
+    p_clear = sub.add_parser("clear", help="Clear stash of the folders in track list")
+    p_clear.add_argument("--file", dest="trackfile", default=str(default_trackfile()))
 
     p_ver = sub.add_parser("version", aliases=["v"], help="Show version")
     p_ver.set_defaults(func=lambda args: print(f"{APP_PROG} 0.1.0"))
@@ -96,6 +100,11 @@ def main():
             fmt=args.fmt
         )
         
+    elif args.cmd == "clear":
+        tf = Path(args.trackfile)
+        paths = load_tracklist(tf)
+        stash_clear(paths)
+
     elif args.cmd == "version" or "v":
         args.func(args)
     
