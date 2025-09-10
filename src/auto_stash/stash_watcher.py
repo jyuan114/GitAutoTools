@@ -10,7 +10,7 @@ APP_NAME = "GitAutoStash"
 DEFAULT_INTERVAL = 20 # second
 LOG_FILE = Path(__file__).resolve().parent.parent / "logs" / "auto_stash.log"
 
-# -------------- 格式工具 -------------
+# -------------- Format / Print utils -------------
 class Colors:
     RESET = "\x1b[0m"
     GRAY = "\x1b[90m"
@@ -46,6 +46,8 @@ def log(msg: str, ts=True):
     else:
         print(f"{msg}")
 
+
+# -------------- Git utils ------------------
 def is_git_repo(path):
     try:
         res = subprocess.run(
@@ -59,7 +61,6 @@ def is_git_repo(path):
     
     except subprocess.CalledProcessError:
         return False
-
 
 def has_changes(cwd, include_untracked=False) -> bool:
 
@@ -104,6 +105,7 @@ def stash_changes(cwd, include_untracked=False):
 
     return ref, message
 
+# -------------- Core Job --------------------
 def do_stash_job(cwd: Path, include_untracked: bool):
     """
     回傳統一結構
@@ -189,6 +191,8 @@ def run_watcher(paths: List[Path], interval=20, include_untracked=False, fmt: st
     except KeyboardInterrupt:
         log("=== Git Auto Stash Watcher Stopped by user ===")
 
+# -------------- Track list Management -------
+
 def default_trackfile():
     """
     Default list location:
@@ -262,7 +266,7 @@ def remove_from_tracklist(trackfile: Path, path: str) -> Tuple[bool, str]:
     save_tracklist(trackfile, new_items)
     return True, f"Removed: {norm}"
 
-# --------- Print --------
+# --------- Render Function --------
 def _render_pretty(run_id: int, started_at: float, duration: float, next_run: float,
                    results: List[dict], color: bool ):
     timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(started_at))
