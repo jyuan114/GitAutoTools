@@ -112,7 +112,7 @@ def main():
         paths = load_tracklist(tf)
         stash_clear(paths)
 
-    elif args.cmd == "version" or "v":
+    elif args.cmd in {"version", "v"}:
         args.func(args)
     
     
