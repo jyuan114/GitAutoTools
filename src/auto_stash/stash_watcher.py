@@ -48,7 +48,7 @@ def log(msg: str, with_timestamp=True):
         print(f"{msg}")
 
 # -------------- Git utils ------------------
-def is_git_repo(path):
+def is_git_repo(path: Path):
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--is-inside-work-tree"],
@@ -306,6 +306,10 @@ def add_to_tracklist(trackfile: Path, path: str) -> Tuple[bool, str]:
     if norm in items:
         return False, f"Existed: {norm}"
     
+    if not is_git_repo(norm):
+            print(_colorize("WARNING: This a non-git repository", Colors.YELLOW, True))
+
+
     items.append(norm)
     save_tracklist(trackfile, items)
     return True, f"Added: {norm}"
