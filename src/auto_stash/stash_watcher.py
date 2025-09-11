@@ -34,35 +34,35 @@ def _short(s: Optional[str], n: int = 8) -> Optional[str]:
         return None
     return s[:n]
 
-def log(msg: str, ts=True):
-    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+def log(msg: str, with_timestamp=True):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
     with LOG_FILE.open("a", encoding="utf-8") as f:
-        f.write(f"[{ts}] {msg}\n")
+        f.write(f"[{timestamp}] {msg}\n")
 
-    if ts:
-        print(f"[{ts}] {msg}")
+    if with_timestamp:
+        print(f"[{timestamp}] {msg}")
     else:
         print(f"{msg}")
 
 # -------------- Git utils ------------------
 def is_git_repo(path):
     try:
-        res = subprocess.run(
+        result = subprocess.run(
             ["git", "rev-parse", "--is-inside-work-tree"],
             cwd=str(path),
             capture_output=True,
             text=True,
             check=True
         )
-        return res.stdout.strip() == "true"
+        return result.stdout.strip() == "true"
     
     except subprocess.CalledProcessError:
         return False
 
-def has_changes(cwd, include_untracked=False) -> bool:
+def has_changes(path, include_untracked=False) -> bool:
 
     cmd = ["git", "status", "--porcelain"]
 
@@ -73,11 +73,11 @@ def has_changes(cwd, include_untracked=False) -> bool:
         cmd,
         capture_output=True,
         text=True,
-        cwd=cwd
+        cwd=path
     )
     return bool(result.stdout.strip())
 
-def has_stash_changes(cwd, include_untracked=False) -> bool:
+def has_stash_changes(path, include_untracked=False) -> bool:
 
     cmd = ["git", "diff", "stash@{0}", "--name-only"]
 
@@ -88,11 +88,11 @@ def has_stash_changes(cwd, include_untracked=False) -> bool:
         cmd,
         capture_output=True,
         text=True,
-        cwd=cwd
+        cwd=path
     )
     return bool(result.stdout.strip())
 
-def stash_changes(cwd, include_untracked=False):
+def stash_changes(path, include_untracked=False):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     create_cmd = ["git", "stash", "create"] 
@@ -100,14 +100,14 @@ def stash_changes(cwd, include_untracked=False):
     if include_untracked:
         create_cmd.append("--include-untracked")
 
-    res = subprocess.run(
+    result = subprocess.run(
         create_cmd,
         capture_output=True,
         text=True,
-        cwd=cwd
+        cwd=path
     )
 
-    ref = res.stdout.strip()
+    ref = result.stdout.strip()
     message = f"auto-stash {timestamp}"
 
     store_cmd = ["git", "stash", "store", ref, "-m", message]
@@ -115,7 +115,7 @@ def stash_changes(cwd, include_untracked=False):
     subprocess.run(
         store_cmd,
         check=True,
-        cwd=cwd
+        cwd=path
     )
 
     return ref, message
@@ -151,7 +151,7 @@ def stash_clear(paths: List[Path]):
 def build_stash_state(paths: List[Path]):
     return {p: False for p in paths}
 
-def do_stash_job(cwd: Path, include_untracked: bool, stashed: bool):
+def do_stash_job(path: Path, include_untracked: bool, stashed: bool):
     """
     回傳統一結構
     {
@@ -163,16 +163,16 @@ def do_stash_job(cwd: Path, include_untracked: bool, stashed: bool):
     }
     """
     try:
-        if not is_git_repo(cwd):
-            return {"repo": str(cwd), "status": "SKIPPED", "detail": "not a git repository"}
+        if not is_git_repo(path):
+            return {"repo": str(path), "status": "SKIPPED", "detail": "not a git repository"}
 
-        if has_changes(cwd, include_untracked):
+        if has_changes(path, include_untracked):
 
             if stashed:
-                if not has_stash_changes(cwd, include_untracked):
-                    return {"repo": str(cwd), "status": "NO_CHANGES"}
+                if not has_stash_changes(path, include_untracked):
+                    return {"repo": str(path), "status": "NO_CHANGES"}
                 
-            ret = stash_changes(cwd)
+            ret = stash_changes(path)
             stash_id: Optional[str] = None
             message: Optional[str] = None
 
@@ -183,18 +183,18 @@ def do_stash_job(cwd: Path, include_untracked: bool, stashed: bool):
                     message = ret[1]
                 
             return {
-                "repo": str(cwd),
+                "repo": str(path),
                 "status": "STASHED",
                 "stash_id": stash_id,
                 "message": message,
             }
         
         else:
-            return {"repo": str(cwd), "status": "NO_CHANGES"}
+            return {"repo": str(path), "status": "NO_CHANGES"}
 
     except Exception as e:
         return {
-            "repo": str(cwd),
+            "repo": str(path),
             "status": "ERROR",
             "detail": str(e)
         }
@@ -215,11 +215,11 @@ def run_watcher(paths: List[Path], interval=20, include_untracked=False, fmt: st
 
                 results: List[dict] = []
                 try:
-                    for cwd in paths:
-                        res = do_stash_job(cwd, include_untracked, stash_state[cwd])
+                    for path in paths:
+                        res = do_stash_job(path, include_untracked, stash_state[path])
 
                         if res['status'] == "STASHED":
-                            stash_state[cwd] = True
+                            stash_state[path] = True
 
                         results.append(res)
 
@@ -247,7 +247,7 @@ def run_watcher(paths: List[Path], interval=20, include_untracked=False, fmt: st
     except KeyboardInterrupt:
         log("=== Git Auto Stash Watcher Stopped by user ===")
 
-# -------------- Track list Management -------
+# -------------- Tracking list Management -------
 
 def default_trackfile():
     """
@@ -292,7 +292,7 @@ def save_tracklist(trackfile: Path, items: List[Path]) -> None:
 
     tmp = trackfile.with_suffix(trackfile.suffix + ".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
-        f.write("# GitAutoStash track list\n")
+        f.write("# GitAutoStash tracking list\n")
         f.write("# 一行一個資料夾；支援 ~ 與環境變數，註解以 # 開頭\n\n")
 
         for p in sorted({str(p.resolve()) for p in items}):
@@ -392,7 +392,7 @@ def _render_line(start: float, duration: float, next_run: float, results: List[d
         if r.get("detail"):
             parts.append(f'detail="{r["detail"]}"')
 
-        log("  ".join(parts),ts=False)
+        log("  ".join(parts),with_timestamp=True)
 
     total = len(results)
     stashed = sum(1 for r in results if r["status"] == "STASHED")
