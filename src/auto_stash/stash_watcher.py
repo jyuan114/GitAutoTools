@@ -307,8 +307,7 @@ def add_to_tracklist(trackfile: Path, path: str) -> Tuple[bool, str]:
         return False, f"Existed: {norm}"
     
     if not is_git_repo(norm):
-            print(_colorize("WARNING: This a non-git repository", Colors.YELLOW, True))
-
+            print(_colorize("WARNING: This is a non-git repository", Colors.YELLOW, True))
 
     items.append(norm)
     save_tracklist(trackfile, items)
@@ -413,6 +412,10 @@ def _render_line(start: float, duration: float, next_run: float, results: List[d
         summary_parts.append(f"skipped={skipped}")
     if errors != 0:
         summary_parts.append(f"errors={errors}")
+
+    summary_parts.append(f"took={duration:.2f}")
+    summary_parts.append(f"next={time.strftime('%H:%M:%S', time.localtime(next_run))}")
+
     log(" ".join(summary_parts))
 
 
