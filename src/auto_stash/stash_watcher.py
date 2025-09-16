@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 from collections import defaultdict
 
+import yaml
+
+
 APP_NAME = "GitAutoStash"
 DEFAULT_INTERVAL = 20 # second
 LOG_FILE = Path(__file__).resolve().parent.parent / "logs" / "auto_stash.log"
@@ -148,6 +151,16 @@ def stash_clear(paths: List[Path]):
             log(f"Failed to clear stash in {path}: {e}")
 
 # -------------- Core Job --------------------
+def apply_config(data, interval, include_untracked, fmt):
+    if not interval:
+        interval = data['global'].get("interval", 300)
+    if not include_untracked:
+        include_untracked = data['global'].get("include_untracked", False)
+    if not fmt:
+        fmt = data['global'].get("format", "line")
+
+    return interval, include_untracked, fmt
+    
 def build_stash_state(paths: List[Path]):
     return {p: False for p in paths}
 
@@ -199,10 +212,13 @@ def do_stash_job(path: Path, include_untracked: bool, stashed: bool):
             "detail": str(e)
         }
 
-def run_watcher(paths: List[Path], interval=20, include_untracked=False, fmt: str="line", color: bool=True):
+def run_watcher(paths: List[Path], interval, include_untracked, fmt, color: bool=True):
     log("=== Git Auto Stash Watcher Started ===")
     next_run = time.time()
     run_id = 0
+
+    data = load_config()
+    interval, include_untracked, fmt = apply_config(data, interval, include_untracked, fmt)
 
     stash_state = build_stash_state(paths)
 
@@ -324,6 +340,66 @@ def remove_from_tracklist(trackfile: Path, path: str) -> Tuple[bool, str]:
     
     save_tracklist(trackfile, new_items)
     return True, f"Removed: {norm}"
+
+# -------------- Config Management -------------
+
+def default_config():
+    """
+    Default list location:
+      - Windows: %APPDATA%/GitAutoStash/tracklist.txt
+      - Others: ~/.config/git-auto-stash/tracklist.txt
+    """
+    if os.name == "nt":
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+        return base / APP_NAME / "config.yaml"
+    
+    else:
+        return Path.home() / ".config" / "git-auto-stash" / "config.yaml"
+    
+def init_config(config_file: Path):
+    config_file.parent.mkdir(parents=True, exist_ok=True)
+
+    config = {
+        "global":{
+            "interval": 300,
+            "include_untracked": False,
+            "format": "line"
+        }
+    }
+
+    with open(config_file, "w", encoding="utf-8") as f:
+        f.write("# Git Auto Stash Config\n\n")
+        yaml.dump(config, f, sort_keys=False, allow_unicode=True)
+        
+def _parse_scaler(val: str):
+    low = val.lower()
+    if low in {"true", "yes"}:
+        return  True
+    elif low in {"false", "no"}:
+        return False
+    elif low in {"null", "none"}:
+        return  None
+    try:
+        return int(val)
+    except ValueError:
+        try:
+            return  float(val)
+        except ValueError:
+            return val
+
+def load_config(path=None) -> dict:
+    if path is None:
+        path = default_config()
+
+    if not path.exists():
+        return {}
+    
+    with path.open( "r", encoding="utf-8") as f:
+        raw = f.read()
+    
+    data = yaml.safe_load(raw) or {}
+    
+    return data
 
 # --------- Render Function --------
 def _render_pretty(run_id: int, started_at: float, duration: float, next_run: float,

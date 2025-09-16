@@ -6,7 +6,10 @@ from .stash_watcher import (
     add_to_tracklist,
     remove_from_tracklist,
     run_watcher,
-    stash_clear
+    stash_clear,
+    load_config,
+    default_config,
+    init_config
 )
 
 APP_PROG = "auto-stash"
@@ -45,7 +48,7 @@ def build_parser():
                              help="Watch tracked folders and automatically stash changes.\n"
                                   "If --cwd is provided, only that repository is watched\n"
                                   "and the tracking list is ignored.")
-    p_watch.add_argument("--fmt", choices=["pretty", "line"], default="line", help="Output format: pretty or line")
+    p_watch.add_argument("--fmt", choices=["pretty", "line"], help="Output format: pretty or line")
     p_watch.add_argument("--cwd", help="Specify the Git repo path")
     p_watch.add_argument("--file", dest="trackfile", default=str(default_trackfile()))
     p_watch.add_argument("--interval", "-i", metavar="", type=int, default=300, help="Polling interval in secounds")
@@ -53,6 +56,9 @@ def build_parser():
 
     p_clear = sub.add_parser("clear", help="Clear all stashes in tracked folders.")
     p_clear.add_argument("--file", dest="trackfile", default=str(default_trackfile()))
+
+    p_config = sub.add_parser("config")
+
 
     p_ver = sub.add_parser("version", aliases=["v"], help="Show program version.")
     p_ver.set_defaults(func=lambda args: print(f"{APP_PROG} {VERSION}"))
@@ -112,10 +118,19 @@ def main():
         paths = load_tracklist(tf)
         stash_clear(paths)
 
+    elif args.cmd == "config":
+        cf = Path(default_config())
+        data = load_config(cf)
+        if not data:
+            init_config(cf)
+            data = load_config(cf)
+            print(data)
+        else:
+            print(data)
+
     elif args.cmd in {"version", "v"}:
         args.func(args)
     
     
-
 if __name__ == "__main__":
     main()
