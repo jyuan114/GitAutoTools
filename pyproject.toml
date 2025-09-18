@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [{name="Your Name"}]
+dependencies = ["pyyaml>=6.0",]
 
 [project.scripts]
 auto-stash = "auto_stash.cli:main"
