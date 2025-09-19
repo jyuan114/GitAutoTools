@@ -1,4 +1,6 @@
 import argparse
+import yaml
+import pprint
 from pathlib import Path
 from .stash_watcher import (
     default_trackfile,
@@ -56,7 +58,16 @@ def build_parser():
     p_clear.add_argument("--file", dest="trackfile", default=str(default_trackfile()))
 
     p_config = sub.add_parser("config", help="Show configutation.")
+    sub_config = p_config.add_subparsers(dest="config_cmd")
 
+    cfg_list = sub_config.add_parser("list", help="Show effective config.")
+    cfg_get = sub_config.add_parser("get", help="Get a config value.")
+    cfg_set = sub_config.add_parser("set", help="Set a config value.")
+    cfg_unset = sub_config.add_parser("unset", help="Remove a config key.")
+    cfg_edit = sub_config.add_parser("edit", help="Edit config in $EDITOR.")
+
+    for cfg_ in (cfg_list, cfg_get, cfg_set, cfg_unset, cfg_edit):
+        cfg_.add_argument("--path", help="Target repo dir")
 
     p_ver = sub.add_parser("version", aliases=["v"], help="Show program version.")
     p_ver.set_defaults(func=lambda args: print(f"{APP_PROG} {VERSION}"))
@@ -113,14 +124,19 @@ def main():
         stash_clear(paths)
 
     elif args.cmd == "config":
+        
+        if not args.config_cmd:
+            parser._subparsers._group_actions[0].choices["config"].print_help()
+            return 0
+        
         cf = Path(default_config())
         data = load_config(cf)
         if not data:
             init_config(cf)
             data = load_config(cf)
-            print(data)
+            print(yaml.dump(data))
         else:
-            print(data)
+            print(yaml.dump(data))
 
     elif args.cmd in {"version", "v"}:
         args.func(args)
