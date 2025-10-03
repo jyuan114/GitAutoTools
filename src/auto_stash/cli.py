@@ -71,7 +71,6 @@ def build_parser():
     cfg_set = sub_config.add_parser("set", help="Set a config value.")
     cfg_set.add_argument("key", help="Config key")
     cfg_set.add_argument("value", help="Config value")
-    cfg_set.add_argument("--path", help="Target repo dir")   ### todo
 
     cfg_unset = sub_config.add_parser("unset", help="Remove a config key.")
     cfg_edit = sub_config.add_parser("edit", help="Edit config in $EDITOR.")

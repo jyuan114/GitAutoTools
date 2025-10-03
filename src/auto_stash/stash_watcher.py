@@ -343,7 +343,6 @@ def remove_from_tracklist(trackfile: Path, path: str) -> Tuple[bool, str]:
     return True, f"Removed: {norm}"
 
 # -------------- Config Management -------------
-
 def default_config() -> Path:
     """
     Default list location:
