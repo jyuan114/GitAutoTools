@@ -4,14 +4,14 @@ import datetime
 import time
 import os
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 from collections import defaultdict
 
 import yaml
 
 
 APP_NAME = "GitAutoStash"
-DEFAULT_INTERVAL = 20 # second
+DEFAULT_INTERVAL = 300 # second
 LOG_FILE = Path(__file__).resolve().parent.parent / "logs" / "auto_stash.log"
 
 # -------------- Format / Print utils -------------
@@ -153,11 +153,11 @@ def stash_clear(paths: List[Path]):
 # -------------- Core Job --------------------
 def apply_config(data, interval, include_untracked, fmt):
     if not interval:
-        interval = data['global'].get("interval", 300)
+        interval = data.get("interval", DEFAULT_INTERVAL)
     if not include_untracked:
-        include_untracked = data['global'].get("include_untracked", False)
+        include_untracked = data.get("include_untracked", False)
     if not fmt:
-        fmt = data['global'].get("format", "line")
+        fmt = data.get("format", "line")
 
     return interval, include_untracked, fmt
     
@@ -304,6 +304,7 @@ def load_tracklist(trackfile: Path) -> List[Path]:
     return items
 
 def save_tracklist(trackfile: Path, items: List[Path]) -> None:
+    trackfile = Path(trackfile)
     trackfile.parent.mkdir(parents=True, exist_ok=True)
 
     tmp = trackfile.with_suffix(trackfile.suffix + ".tmp")
@@ -343,7 +344,7 @@ def remove_from_tracklist(trackfile: Path, path: str) -> Tuple[bool, str]:
 
 # -------------- Config Management -------------
 
-def default_config():
+def default_config() -> Path:
     """
     Default list location:
       - Windows: %APPDATA%/GitAutoStash/tracklist.txt
@@ -356,20 +357,21 @@ def default_config():
     else:
         return Path.home() / ".config" / "git-auto-stash" / "config.yaml"
     
+def repo_config_path(repo_root: Path) -> Path:
+    return repo_root / ".git" / "auto-stash" / "config.yaml"
+
 def init_config(config_file: Path):
     config_file.parent.mkdir(parents=True, exist_ok=True)
 
     config = {
-        "global":{
             "interval": 300,
             "include_untracked": False,
             "format": "line"
-        }
     }
 
-    with open(config_file, "w", encoding="utf-8") as f:
-        f.write("# Git Auto Stash Config\n\n")
-        yaml.dump(config, f, sort_keys=False, allow_unicode=True)
+    save_config(config, config_file)
+
+    return 0
         
 def _parse_scaler(val: str):
     low = val.lower()
@@ -400,6 +402,87 @@ def load_config(path=None) -> dict:
     data = yaml.safe_load(raw) or {}
     
     return data
+
+def save_config(data: dict, path: Path): 
+    """
+    Atomic Write to config
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    header = (
+        "# GitAutoStash Configuration File\n"
+        "#  - interval: Polling interval in seconds (default: 300)\n"
+        "#  - include_untracked: Whether to include untracked files (default: false)\n"
+        "#  - format: Output format, either 'line' or 'pretty' (default: 'line')\n"
+        "# You can edit this file manually or use 'auto-stash config set <key> <value>' command.\n\n"
+    )
+
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    yaml_text = yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
+
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(header)
+        f.write(yaml_text)
+    tmp.replace(path)
+
+def get_config(key, path: Path=None):
+    if path is None:
+        path = default_config()
+
+    data = load_config(path)
+    
+    value = data.get(key, None)
+
+    return value
+
+def set_config(key, value, path:Path=None):
+    if path is None:
+        path = default_config()
+
+        data = load_config(path)
+
+        if key not in data:
+            raise KeyError(f"{key} not found in config")
+        elif key == 'interval':
+            try:
+                value = int(value)
+            except ValueError:
+                print("Interval must be an integer")
+                return 2
+            if value < 1:
+                print("Interval must be positive")
+                return 2
+        elif key == 'include_untracked':
+            value = _parse_scaler(value)
+            if value not in {True, False}:
+                print("Invalid boolean value")
+                return 2
+        elif key == 'format':
+            if value not in {"line", "pretty"}:
+                print("Invalid format, should be 'line' or 'pretty'")
+                return 2  
+        data[key] = value
+        save_config(data, path)
+        return 0
+    
+    else:
+        # todo
+        return 1
+
+def edit_config(path: Optional[Path]=None):
+    if path is None:
+        path = default_config()
+
+    editor = os.environ.get("EDITOR", None)
+    if not editor:
+        if os.name == "nt":
+            editor = "notepad"
+        else:
+            editor = "vi"
+            
+    subprocess.run([editor, str(path)])
+    return 0
 
 # --------- Render Function --------
 def _render_pretty(run_id: int, started_at: float, duration: float, next_run: float,

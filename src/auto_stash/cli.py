@@ -11,7 +11,10 @@ from .stash_watcher import (
     stash_clear,
     load_config,
     default_config,
-    init_config
+    init_config,
+    get_config,
+    set_config,
+    edit_config,
 )
 
 APP_PROG = "auto-stash"
@@ -51,7 +54,7 @@ def build_parser():
     p_watch.add_argument("--fmt", choices=["pretty", "line"], help="Set output format: pretty or line.")
     p_watch.add_argument("--cwd", help="Watch only the specified Git repo.")
     p_watch.add_argument("--file", dest="trackfile", default=str(default_trackfile()))
-    p_watch.add_argument("--interval", "-i", metavar="", type=int, default=300, help="Set polling interval in secounds.")
+    p_watch.add_argument("--interval", "-i", metavar="", type=int, help="Set polling interval in secounds.")
     p_watch.add_argument("--include-untracked", "-u", action="store_true", help="Include untracked files when detecting changes.")
 
     p_clear = sub.add_parser("clear", help="Clear all stashes in tracked folders.")
@@ -61,8 +64,15 @@ def build_parser():
     sub_config = p_config.add_subparsers(dest="config_cmd")
 
     cfg_list = sub_config.add_parser("list", help="Show effective config.")
+
     cfg_get = sub_config.add_parser("get", help="Get a config value.")
+    cfg_get.add_argument("key", help="Config key")
+
     cfg_set = sub_config.add_parser("set", help="Set a config value.")
+    cfg_set.add_argument("key", help="Config key")
+    cfg_set.add_argument("value", help="Config value")
+    cfg_set.add_argument("--path", help="Target repo dir")   ### todo
+
     cfg_unset = sub_config.add_parser("unset", help="Remove a config key.")
     cfg_edit = sub_config.add_parser("edit", help="Edit config in $EDITOR.")
 
@@ -124,19 +134,47 @@ def main():
         stash_clear(paths)
 
     elif args.cmd == "config":
-        
-        if not args.config_cmd:
-            parser._subparsers._group_actions[0].choices["config"].print_help()
-            return 0
-        
+
         cf = Path(default_config())
         data = load_config(cf)
         if not data:
             init_config(cf)
             data = load_config(cf)
+
+        if not args.config_cmd:
+            parser._subparsers._group_actions[0].choices["config"].print_help()
+            return 0
+        
+        elif args.config_cmd == "list":
+            # cf = Path(default_config())
+            # data = load_config(cf)
+            # if not data:
+            #     init_config(cf)
+            #     data = load_config(cf)
+            #     print(yaml.dump(data))
+            # else:
             print(yaml.dump(data))
+
+        elif args.config_cmd == "get":
+            value = get_config(args.key)
+            if value is None:
+                print(f"Config key '{args.key}' not found.")
+                return 1
+            else:
+                print(value)
+                return 0
+
+        elif args.config_cmd == "set":
+            set_config(args.key, args.value)
+
+        elif args.config_cmd == "unset":
+            print("Not yet")
+
+        elif args.config_cmd == "edit":
+            edit_config()
+
         else:
-            print(yaml.dump(data))
+            print("Not yet")
 
     elif args.cmd in {"version", "v"}:
         args.func(args)
